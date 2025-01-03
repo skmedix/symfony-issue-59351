@@ -1,0 +1,33 @@
+name: Symfony Mailer SMTP Reproducer
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  symfony:
+    name: Symfony (PHP ${{ matrix.php-versions }} on ${{ matrix.operating-system }})
+    runs-on: ${{ matrix.operating-system }}
+    strategy:
+      fail-fast: false
+      matrix:
+        php-versions: [8.2, 8.3, 8.4]
+        operating-system: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@2.32.0
+        with:
+          php-version: ${{ matrix.php-versions }}
+          extensions: ctype, iconv
+
+      - name: Install dependencies
+        run: composer install --no-progress --prefer-dist --optimize-autoloader
+
+      - name: Set Up Environment with bad credentials
+        run: |
+          echo "MAILER_DSN=smtp://bad:credentials@sandbox.smtp.mailtrap.io:2525" > .env.dev
+
+      - name: Trigger mailer test
+        run: php bin/console mailer:test nonexisting@localhost
