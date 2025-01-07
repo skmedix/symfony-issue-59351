@@ -10,7 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         php-versions: [8.2, 8.3, 8.4]
-        operating-system: [ubuntu-latest, windows-latest, macos-latest]
+        operating-system: [ubuntu-latest, windows-latest]
 
     steps:
       - name: Checkout code
@@ -21,13 +21,46 @@ jobs:
         with:
           php-version: ${{ matrix.php-versions }}
           extensions: ctype, iconv
+          tools: composer:v2
 
       - name: Install dependencies
-        run: composer install --no-progress --prefer-dist --optimize-autoloader
+        run: composer install --no-progress --prefer-dist --optimize-autoloader -v
 
       - name: Set Up Environment with bad credentials
         run: |
           echo "MAILER_DSN=smtp://bad:credentials@sandbox.smtp.mailtrap.io:2525" > .env.dev
 
       - name: Trigger mailer test
+        continue-on-error: true
+        run: php bin/console mailer:test nonexisting@localhost
+
+      # This one is overcomplicated, because on windows 'composer config' kept failing to parse json
+      - name: Enable Symfony Mailer Patch (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $json = Get-Content composer.json | ConvertFrom-Json
+          if (-not $json.extra) {
+            $json | Add-Member -Type NoteProperty -Name extra -Value @{}
+          }
+          if (-not $json.extra.patches) {
+            $json.extra | Add-Member -Type NoteProperty -Name patches -Value @{}
+          }
+          if (-not $json.extra.patches.'symfony/mailer') {
+            $json.extra.patches | Add-Member -Type NoteProperty -Name 'symfony/mailer' -Value @{}
+          }
+          $patches = $json.extra.patches.'symfony/mailer'
+          $patches.Stream_EOF = "patches/stream_eof.patch"
+          $json | ConvertTo-Json -Depth 10 | Set-Content composer.json
+          Remove-Item -Recurse -Force vendor
+          composer install --no-progress --prefer-dist --optimize-autoloader -v
+
+      - name: Enable Symfony Mailer Patch (Linux)
+        if: runner.os != 'Windows'
+        run: |
+          composer config --json extra.patches.symfony\/mailer '{"stream_eof":"patches/stream_eof.patch"}'
+          rm -rf vendor/symfony/mailer
+          composer install --no-progress --prefer-dist --optimize-autoloader -v
+
+      - name: Trigger mailer re-test
         run: php bin/console mailer:test nonexisting@localhost

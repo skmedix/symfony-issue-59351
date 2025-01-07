@@ -1,0 +1,12 @@
+diff --git a/Transport/Smtp/Stream/AbstractStream.php b/Transport/Smtp/Stream/AbstractStream.php
+--- a/Transport/Smtp/Stream/AbstractStream.php	(revision 84a37c1baf003597e6ad765e45bdd8602bee871d)
++++ b/Transport/Smtp/Stream/AbstractStream.php	(date 1736280007979)
+@@ -85,7 +85,7 @@
+             if ($metas['timed_out']) {
+                 throw new TransportException(\sprintf('Connection to "%s" timed out.', $this->getReadConnectionDescription()));
+             }
+-            if ($metas['eof']) {
++            if (\feof($this->out)) {
+                 throw new TransportException(\sprintf('Connection to "%s" has been closed unexpectedly.', $this->getReadConnectionDescription()));
+             }
+             if (false === $line) {
